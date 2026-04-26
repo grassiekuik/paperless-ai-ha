@@ -7,6 +7,7 @@ from .const import DOMAIN, CONF_HOST, CONF_API_KEY
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
+    """Set up sensors from a config entry."""
     config = hass.data[DOMAIN][entry.entry_id]
     host = config[CONF_HOST]
     api_key = config[CONF_API_KEY]
@@ -23,17 +24,20 @@ async def async_setup_entry(hass, entry, async_add_entities):
     ], True)
 
 class PaperlessBaseSensor(SensorEntity):
-    """Base class for Paperless-AI sensors with cleaner naming."""
+    """Base class voor Paperless-AI sensoren."""
+    has_entity_name = True
+    
     def __init__(self, host, api_key, name, unique_id, icon):
         self._host = host
         self._api_key = api_key
-        self._attr_name = name  # Removed "Paperless" prefix
+        self._attr_name = name
         self._attr_unique_id = f"{unique_id}_{host}"
         self._attr_icon = icon
         self._state = None
 
     @property
-    def native_value(self): return self._state
+    def native_value(self):
+        return self._state
 
 class PaperlessTotalDocsSensor(PaperlessBaseSensor):
     def __init__(self, host, api_key):
