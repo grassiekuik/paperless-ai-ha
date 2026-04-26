@@ -1,0 +1,11 @@
+{
+  "domain": "paperless_ai",
+  "name": "Paperless-AI",
+  "documentation": "https://github.com/grassiekuik/paperless-ai-ha",
+  "dependencies": [],
+  "codeowners": ["@grassiekuik"],
+  "requirements": ["requests==2.31.0"],
+  "version": "1.0.0",
+  "config_flow": true,
+  "iot_class": "local_polling"
+}
