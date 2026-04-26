@@ -7,7 +7,6 @@ from .const import DOMAIN, CONF_HOST, CONF_API_KEY
 _LOGGER = logging.getLogger(__name__)
 
 async def async_setup_entry(hass, entry, async_add_entities):
-    """Set up sensors from a config entry."""
     config = hass.data[DOMAIN][entry.entry_id]
     host = config[CONF_HOST]
     api_key = config[CONF_API_KEY]
@@ -20,13 +19,11 @@ async def async_setup_entry(hass, entry, async_add_entities):
         PaperlessTotalCorrespondentsSensor(host, api_key),
         PaperlessProcessedTodaySensor(host, api_key),
         PaperlessTokenUsageSensor(host, api_key),
-        PaperlessTaskStatusSensor(host, api_key)
+        PaperlessSystemStatusSensor(host, api_key)
     ], True)
 
 class PaperlessBaseSensor(SensorEntity):
-    """Base class voor Paperless-AI sensoren."""
     has_entity_name = True
-    
     def __init__(self, host, api_key, name, unique_id, icon):
         self._host = host
         self._api_key = api_key
@@ -46,7 +43,9 @@ class PaperlessTotalDocsSensor(PaperlessBaseSensor):
     def update(self):
         try:
             r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
-            self._state = len(r.json())
+            data = r.json()
+            # Als de API een dict met 'data' teruggeeft ipv een list:
+            self._state = len(data.get("data", data)) if isinstance(data, (list, dict)) else 0
         except Exception: self._state = None
 
 class PaperlessAiProcessedSensor(PaperlessBaseSensor):
@@ -56,7 +55,8 @@ class PaperlessAiProcessedSensor(PaperlessBaseSensor):
     def update(self):
         try:
             r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
-            self._state = len([d for d in r.json() if d.get('ai_processed') is True])
+            docs = r.json().get("data", r.json())
+            self._state = len([d for d in docs if d.get('ai_processed') is True or d.get('ai_processed') == 1])
         except Exception: self._state = None
 
 class PaperlessUnprocessedSensor(PaperlessBaseSensor):
@@ -66,8 +66,9 @@ class PaperlessUnprocessedSensor(PaperlessBaseSensor):
     def update(self):
         try:
             r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
-            docs = r.json()
-            self._state = len(docs) - len([d for d in docs if d.get('ai_processed') is True])
+            docs = r.json().get("data", r.json())
+            processed = len([d for d in docs if d.get('ai_processed') is True or d.get('ai_processed') == 1])
+            self._state = len(docs) - processed
         except Exception: self._state = None
 
 class PaperlessTotalTagsSensor(PaperlessBaseSensor):
@@ -77,7 +78,8 @@ class PaperlessTotalTagsSensor(PaperlessBaseSensor):
     def update(self):
         try:
             r = requests.get(f"{self._host}/manual/tags", headers={"x-api-key": self._api_key}, timeout=10)
-            self._state = len(r.json())
+            data = r.json()
+            self._state = len(data.get("data", data))
         except Exception: self._state = None
 
 class PaperlessTotalCorrespondentsSensor(PaperlessBaseSensor):
@@ -87,7 +89,8 @@ class PaperlessTotalCorrespondentsSensor(PaperlessBaseSensor):
     def update(self):
         try:
             r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
-            corrs = {d.get('correspondent') for d in r.json() if d.get('correspondent')}
+            docs = r.json().get("data", r.json())
+            corrs = {d.get('correspondent') for d in docs if d.get('correspondent')}
             self._state = len(corrs)
         except Exception: self._state = None
 
@@ -116,9 +119,9 @@ class PaperlessProcessedTodaySensor(PaperlessBaseSensor):
             self._state = count
         except Exception: self._state = 0
 
-class PaperlessTaskStatusSensor(PaperlessBaseSensor):
+class PaperlessSystemStatusSensor(PaperlessBaseSensor):
     def __init__(self, host, api_key):
-        super().__init__(host, api_key, "Task Runner Status", "paperless_task_status", "mdi:server-network")
+        super().__init__(host, api_key, "System Status", "paperless_system_status", "mdi:server-network")
     
     def update(self):
         try:
