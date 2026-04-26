@@ -1,5 +1,6 @@
 import requests
 import logging
+from datetime import datetime
 from homeassistant.components.sensor import SensorEntity
 from .const import DOMAIN, CONF_HOST, CONF_API_KEY
 
@@ -11,109 +12,118 @@ async def async_setup_entry(hass, entry, async_add_entities):
     api_key = config[CONF_API_KEY]
 
     async_add_entities([
-        PaperlessStatsSensor(host, api_key),
-        PaperlessTokenSensor(host, api_key),
-        PaperlessTaskSensor(host, api_key),
-        PaperlessDocCountSensor(host, api_key)
+        PaperlessTotalDocsSensor(host, api_key),
+        PaperlessAiProcessedSensor(host, api_key),
+        PaperlessUnprocessedSensor(host, api_key),
+        PaperlessTotalTagsSensor(host, api_key),
+        PaperlessTotalCorrespondentsSensor(host, api_key),
+        PaperlessProcessedTodaySensor(host, api_key),
+        PaperlessTokenUsageSensor(host, api_key),
+        PaperlessTaskStatusSensor(host, api_key)
     ], True)
 
-class PaperlessDocCountSensor(SensorEntity):
-    """Gedetailleerde document status (Total, AI Processed, Unprocessed)."""
-    def __init__(self, host, api_key):
-        self._host, self._api_key = host, api_key
-        self._attr_name = "Paperless Document Status"
-        self._attr_unique_id = f"paperless_docs_{host}"
-        self._attr_icon = "mdi:file-document-multiple"
+class PaperlessBaseSensor(SensorEntity):
+    """Base class voor Paperless sensoren."""
+    def __init__(self, host, api_key, name, unique_id, icon):
+        self._host = host
+        self._api_key = api_key
+        self._attr_name = name
+        self._attr_unique_id = f"{unique_id}_{host}"
+        self._attr_icon = icon
         self._state = None
-        self._extra_attr = {}
 
     @property
     def native_value(self): return self._state
-    @property
-    def extra_state_attributes(self): return self._extra_attr
 
+class PaperlessTotalDocsSensor(PaperlessBaseSensor):
+    def __init__(self, host, api_key):
+        super().__init__(host, api_key, "Paperless Total Documents", "paperless_total_docs", "mdi:file-document-multiple")
+    
     def update(self):
         try:
-            # We halen de lijst op om de echte counts te berekenen
+            r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
+            self._state = len(r.json())
+        except Exception: self._state = None
+
+class PaperlessAiProcessedSensor(PaperlessBaseSensor):
+    def __init__(self, host, api_key):
+        super().__init__(host, api_key, "Paperless AI Processed", "paperless_ai_processed", "mdi:robot-check")
+    
+    def update(self):
+        try:
+            r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
+            self._state = len([d for d in r.json() if d.get('ai_processed') is True])
+        except Exception: self._state = None
+
+class PaperlessUnprocessedSensor(PaperlessBaseSensor):
+    def __init__(self, host, api_key):
+        super().__init__(host, api_key, "Paperless Unprocessed", "paperless_unprocessed", "mdi:file-clock")
+    
+    def update(self):
+        try:
             r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
             docs = r.json()
-            total = len(docs)
-            processed = len([d for d in docs if d.get('ai_processed') is True])
-            self._state = total
-            self._extra_attr = {
-                "ai_processed": processed,
-                "unprocessed": total - processed,
-                "total_documents": total
-            }
-        except Exception as e: _LOGGER.error("Error updating doc sensor: %s", e)
+            self._state = len(docs) - len([d for d in docs if d.get('ai_processed') is True])
+        except Exception: self._state = None
 
-class PaperlessStatsSensor(SensorEntity):
-    """Systeem statistieken (Tags, Correspondents)."""
+class PaperlessTotalTagsSensor(PaperlessBaseSensor):
     def __init__(self, host, api_key):
-        self._host, self._api_key = host, api_key
-        self._attr_name = "Paperless System Statistics"
-        self._attr_unique_id = f"paperless_stats_{host}"
-        self._attr_icon = "mdi:chart-bar"
-        self._state = None
-        self._extra_attr = {}
-
-    @property
-    def native_value(self): return self._state
-    @property
-    def extra_state_attributes(self): return self._extra_attr
-
+        super().__init__(host, api_key, "Paperless Total Tags", "paperless_total_tags", "mdi:tag-multiple")
+    
     def update(self):
         try:
-            # Tags tellen
-            t = requests.get(f"{self._host}/manual/tags", headers={"x-api-key": self._api_key}, timeout=10)
-            tags_count = len(t.json())
-            self._state = tags_count
-            self._extra_attr = {"total_tags": tags_count}
-        except Exception as e: _LOGGER.error("Error updating stats sensor: %s", e)
+            r = requests.get(f"{self._host}/manual/tags", headers={"x-api-key": self._api_key}, timeout=10)
+            self._state = len(r.json())
+        except Exception: self._state = None
 
-class PaperlessTokenSensor(SensorEntity):
-    """AI Token Usage."""
+class PaperlessTotalCorrespondentsSensor(PaperlessBaseSensor):
     def __init__(self, host, api_key):
-        self._host, self._api_key = host, api_key
-        self._attr_name = "Paperless AI Tokens"
-        self._attr_unique_id = f"paperless_tokens_{host}"
-        self._attr_icon = "mdi:cpu-64-bit"
-        self._state = 0
-        self._extra_attr = {}
+        super().__init__(host, api_key, "Paperless Total Correspondents", "paperless_total_corr", "mdi:account-arrow-right")
+    
+    def update(self):
+        try:
+            # Op basis van dashboard stats (meestal afgeleid van documenten of specifieke API)
+            r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
+            corrs = {d.get('correspondent') for d in r.json() if d.get('correspondent')}
+            self._state = len(corrs)
+        except Exception: self._state = None
 
-    @property
-    def native_value(self): return self._state
-    @property
-    def extra_state_attributes(self): return self._extra_attr
-
+class PaperlessTokenUsageSensor(PaperlessBaseSensor):
+    def __init__(self, host, api_key):
+        super().__init__(host, api_key, "Paperless Total Tokens Used", "paperless_tokens", "mdi:counter")
+        self._attr_native_unit_of_measurement = "tokens"
+    
     def update(self):
         try:
             r = requests.get(f"{self._host}/api/history", headers={"x-api-key": self._api_key}, timeout=10)
-            data = r.json()
-            # Hier tellen we de tokens op uit de historie (indien beschikbaar in API)
-            self._state = data.get("total_tokens_used", 0)
-            self._extra_attr = {
-                "prompt_tokens": data.get("total_prompt_tokens", 0),
-                "completion_tokens": data.get("total_completion_tokens", 0)
-            }
-        except Exception: pass
+            # We halen de totale tokens uit de API data
+            self._state = r.json().get("total_tokens_used", 0)
+        except Exception: self._state = 0
 
-class PaperlessTaskSensor(SensorEntity):
-    """Task Runner Status."""
+class PaperlessProcessedTodaySensor(PaperlessBaseSensor):
     def __init__(self, host, api_key):
-        self._host, self._api_key = host, api_key
-        self._attr_name = "Paperless Task Status"
-        self._attr_unique_id = f"paperless_task_{host}"
-        self._attr_icon = "mdi:run-fast"
-        self._state = "Idle"
-
-    @property
-    def native_value(self): return self._state
-
+        super().__init__(host, api_key, "Paperless Processed Today", "paperless_processed_today", "mdi:calendar-check")
+        self._attr_native_unit_of_measurement = "documents"
+    
     def update(self):
         try:
-            # We checken de system status
+            r = requests.get(f"{self._host}/api/history", headers={"x-api-key": self._api_key}, timeout=10)
+            today = datetime.now().strftime('%Y-%m-%d')
+            history = r.json().get("data", [])
+            # Tel documenten die vandaag zijn aangemaakt/verwerkt
+            count = len([h for h in history if h.get('created_at', '').startswith(today)])
+            self._state = count
+        except Exception: self._state = 0
+
+class PaperlessTaskStatusSensor(PaperlessBaseSensor):
+    def __init__(self, host, api_key):
+        super().__init__(host, api_key, "Paperless Task Runner Status", "paperless_task_status", "mdi:server-network")
+    
+    def update(self):
+        try:
             r = requests.get(f"{self._host}/api/history", headers={"x-api-key": self._api_key}, timeout=10)
             if r.status_code == 200:
-                self._state = "System Idle" # In een toekomstige API update kunnen we hier 'Processing' van maken
+                self._state = "System Idle"
+            else:
+                self._state = "Error"
         except Exception: self._state = "Offline"
