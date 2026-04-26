@@ -39,7 +39,7 @@ class PaperlessBaseSensor(SensorEntity):
     def native_value(self) -> StateType:
         return self._state
 
-    def _get_data((self, endpoint):
+    def _get_data(self, endpoint):
         """Helper om data op te halen via een synchroon request."""
         try:
             url = f"{self._host}{endpoint}"
@@ -57,7 +57,7 @@ class PaperlessTotalDocsSensor(PaperlessBaseSensor):
     
     async def async_update(self):
         data = await self.hass.async_add_executor_job(self._get_data, "/manual/documents")
-        if data:
+        if data is not None:
             docs = data.get("data", data) if isinstance(data, dict) else data
             self._state = len(docs) if isinstance(docs, list) else 0
 
@@ -67,7 +67,7 @@ class PaperlessAiProcessedSensor(PaperlessBaseSensor):
     
     async def async_update(self):
         data = await self.hass.async_add_executor_job(self._get_data, "/manual/documents")
-        if data:
+        if data is not None:
             docs = data.get("data", data) if isinstance(data, dict) else data
             if isinstance(docs, list):
                 self._state = len([d for d in docs if str(d.get('ai_processed')).lower() in ['true', '1']])
@@ -78,7 +78,7 @@ class PaperlessUnprocessedSensor(PaperlessBaseSensor):
     
     async def async_update(self):
         data = await self.hass.async_add_executor_job(self._get_data, "/manual/documents")
-        if data:
+        if data is not None:
             docs = data.get("data", data) if isinstance(data, dict) else data
             if isinstance(docs, list):
                 processed = len([d for d in docs if str(d.get('ai_processed')).lower() in ['true', '1']])
@@ -90,7 +90,7 @@ class PaperlessTotalTagsSensor(PaperlessBaseSensor):
     
     async def async_update(self):
         data = await self.hass.async_add_executor_job(self._get_data, "/manual/tags")
-        if data:
+        if data is not None:
             tags = data.get("data", data) if isinstance(data, dict) else data
             self._state = len(tags) if isinstance(tags, list) else 0
 
@@ -100,7 +100,7 @@ class PaperlessTotalCorrespondentsSensor(PaperlessBaseSensor):
     
     async def async_update(self):
         data = await self.hass.async_add_executor_job(self._get_data, "/manual/documents")
-        if data:
+        if data is not None:
             docs = data.get("data", data) if isinstance(data, dict) else data
             if isinstance(docs, list):
                 self._state = len({d.get('correspondent') for d in docs if d.get('correspondent')})
