@@ -1,21 +1,28 @@
 import voluptuous as vol
 from homeassistant import config_entries
+import homeassistant.helpers.config_validation as cv
 from .const import DOMAIN, CONF_HOST, CONF_API_KEY
 
 class PaperlessAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
-    """Handle a config flow for Paperless-AI."""
+    """Beheer de configuratie flow voor Paperless-AI."""
 
     VERSION = 1
 
     async def async_step_user(self, user_input=None):
-        """Handle the initial step."""
+        """Stap die wordt aangeroepen wanneer de gebruiker de integratie toevoegt."""
         errors = {}
 
         if user_input is not None:
-            # Maak de integratie aan met de ingevoerde data
-            return self.async_create_entry(title="Paperless-AI", data=user_input)
+            # Hier maken we de koppeling definitief
+            return self.async_create_entry(
+                title="Paperless-AI", 
+                data={
+                    CONF_HOST: user_input[CONF_HOST],
+                    CONF_API_KEY: user_input[CONF_API_KEY],
+                }
+            )
 
-        # Het formulier dat de gebruiker ziet
+        # Het formulier met de exacte velden
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
