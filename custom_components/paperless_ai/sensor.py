@@ -44,8 +44,8 @@ class PaperlessTotalDocsSensor(PaperlessBaseSensor):
         try:
             r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
             data = r.json()
-            # Als de API een dict met 'data' teruggeeft ipv een list:
-            self._state = len(data.get("data", data)) if isinstance(data, (list, dict)) else 0
+            docs = data.get("data", data) if isinstance(data, dict) else data
+            self._state = len(docs) if isinstance(docs, list) else 0
         except Exception: self._state = None
 
 class PaperlessAiProcessedSensor(PaperlessBaseSensor):
@@ -55,8 +55,10 @@ class PaperlessAiProcessedSensor(PaperlessBaseSensor):
     def update(self):
         try:
             r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
-            docs = r.json().get("data", r.json())
-            self._state = len([d for d in docs if d.get('ai_processed') is True or d.get('ai_processed') == 1])
+            data = r.json()
+            docs = data.get("data", data) if isinstance(data, dict) else data
+            if isinstance(docs, list):
+                self._state = len([d for d in docs if d.get('ai_processed') in [True, 1, "1", "true"]])
         except Exception: self._state = None
 
 class PaperlessUnprocessedSensor(PaperlessBaseSensor):
@@ -66,9 +68,11 @@ class PaperlessUnprocessedSensor(PaperlessBaseSensor):
     def update(self):
         try:
             r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
-            docs = r.json().get("data", r.json())
-            processed = len([d for d in docs if d.get('ai_processed') is True or d.get('ai_processed') == 1])
-            self._state = len(docs) - processed
+            data = r.json()
+            docs = data.get("data", data) if isinstance(data, dict) else data
+            if isinstance(docs, list):
+                processed = len([d for d in docs if d.get('ai_processed') in [True, 1, "1", "true"]])
+                self._state = len(docs) - processed
         except Exception: self._state = None
 
 class PaperlessTotalTagsSensor(PaperlessBaseSensor):
@@ -79,7 +83,8 @@ class PaperlessTotalTagsSensor(PaperlessBaseSensor):
         try:
             r = requests.get(f"{self._host}/manual/tags", headers={"x-api-key": self._api_key}, timeout=10)
             data = r.json()
-            self._state = len(data.get("data", data))
+            tags = data.get("data", data) if isinstance(data, dict) else data
+            self._state = len(tags) if isinstance(tags, list) else 0
         except Exception: self._state = None
 
 class PaperlessTotalCorrespondentsSensor(PaperlessBaseSensor):
@@ -89,9 +94,11 @@ class PaperlessTotalCorrespondentsSensor(PaperlessBaseSensor):
     def update(self):
         try:
             r = requests.get(f"{self._host}/manual/documents", headers={"x-api-key": self._api_key}, timeout=10)
-            docs = r.json().get("data", r.json())
-            corrs = {d.get('correspondent') for d in docs if d.get('correspondent')}
-            self._state = len(corrs)
+            data = r.json()
+            docs = data.get("data", data) if isinstance(data, dict) else data
+            if isinstance(docs, list):
+                corrs = {d.get('correspondent') for d in docs if d.get('correspondent')}
+                self._state = len(corrs)
         except Exception: self._state = None
 
 class PaperlessTokenUsageSensor(PaperlessBaseSensor):
@@ -115,8 +122,7 @@ class PaperlessProcessedTodaySensor(PaperlessBaseSensor):
             r = requests.get(f"{self._host}/api/history", headers={"x-api-key": self._api_key}, timeout=10)
             today = datetime.now().strftime('%Y-%m-%d')
             history = r.json().get("data", [])
-            count = len([h for h in history if h.get('created_at', '').startswith(today)])
-            self._state = count
+            self._state = len([h for h in history if str(h.get('created_at', '')).startswith(today)])
         except Exception: self._state = 0
 
 class PaperlessSystemStatusSensor(PaperlessBaseSensor):
@@ -126,8 +132,5 @@ class PaperlessSystemStatusSensor(PaperlessBaseSensor):
     def update(self):
         try:
             r = requests.get(f"{self._host}/api/history", headers={"x-api-key": self._api_key}, timeout=10)
-            if r.status_code == 200:
-                self._state = "System Idle"
-            else:
-                self._state = "Error"
+            self._state = "System Idle" if r.status_code == 200 else "Error"
         except Exception: self._state = "Offline"
