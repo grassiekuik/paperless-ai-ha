@@ -1,6 +1,7 @@
 import voluptuous as vol
 from homeassistant import config_entries
-from .const import DOMAIN, CONF_HOST, CONF_API_KEY
+
+DOMAIN = "paperless_ai"
 
 class PaperlessAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
     """Handle a config flow for Paperless-AI."""
@@ -13,7 +14,7 @@ class PaperlessAIConfigFlow(config_entries.ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="user",
             data_schema=vol.Schema({
-                vol.Required(CONF_HOST, default="http://192.168.50.39:3000"): str,
-                vol.Required(CONF_API_KEY): str,
+                vol.Required("host", default="http://192.168.50.39:3000"): str,
+                vol.Required("api_key"): str,
             })
         )
